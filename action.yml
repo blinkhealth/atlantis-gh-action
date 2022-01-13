@@ -1,0 +1,27 @@
+name: 'Atlantis Automation'
+description: 'Checks for result of atlantis plan, approves PR, and runs atlantis apply'
+
+inputs:
+  pr_number: 
+    description: 'PR number'
+    required: true
+  path:
+    description: 'Folder to run `atlantis apply against`'
+    required: true
+  github_token:
+    description: 'Token to use for reviewing and posting comments to the PR'
+    required: true
+
+runs:
+  using: "composite"
+
+  steps:
+    - uses: actions/setup-go@v2
+      with:
+        go-version: '^1.17.2'
+    - run: go run ./main.go ${{ inputs.pr_number }}
+      shell: bash
+      env:
+        GHA_atlantis_path: ${{ inputs.path }}
+        TF_VAR_gh_approve_token: ${{ inputs.gh_token }}
+        TF_VAR_gh_api_token: ${{ inputs.gh_token }}

@@ -142,22 +142,74 @@ func runPlan(org string, repo string, prNum int, atlantisPath string) {
 	}
 }
 
+func runApply(org string, repo string, prNum int, atlantisPath string) {
+	ctx := context.Background()
+
+	token := os.Getenv("TF_VAR_gh_api_token")
+
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	tc := oauth2.NewClient(ctx, ts)
+
+	client := github.NewClient(tc)
+
+	comments, err := getComments(ctx, *client, 0, org, repo, prNum)
+
+	if err != nil {
+		errorStr := fmt.Sprintf("unexpected error: %s", err.Error())
+		panic(errors.New(errorStr))
+	}
+
+	bodyContent := comments[0].GetBody()
+
+	if strings.Contains(bodyContent, "Your atlantis.yaml config is up to date!") {
+		postComment(ctx, *client, "atlantis plan", org, repo, prNum)
+	} else {
+
+		errorStr := fmt.Sprintf("Error with altantis config step %s and pr %v", repo, prNum)
+		panic(errors.New(errorStr))
+	}
+
+	userNames := []string{"blinkhealth-welcome-to"}
+
+	reviewer := github.ReviewersRequest{Reviewers: userNames}
+
+	_, _, err = client.PullRequests.RequestReviewers(ctx, org, repo, prNum, reviewer)
+
+	if err != nil {
+		errorStr := fmt.Sprintf("unexpected error: %s", err.Error())
+		panic(errors.New(errorStr))
+	}
+
+	comments, err = getComments(ctx, *client, 2, org, repo, prNum)
+
+	if err != nil {
+		panic(errors.New("error with getting comments"))
+	}
+
+	bodyContent = comments[len(comments)-1].GetBody()
+
+	if !strings.Contains(bodyContent, "Ran Plan for dir") {
+		fmt.Println(bodyContent)
+		errorStr := fmt.Sprintf("Error with plan on repo %s and pr %v", repo, prNum)
+
+		panic(errors.New(errorStr))
+	}
+}
+
 func main() {
 
+	// Retrieve repo name and org from GHA context
 	repo := os.Getenv("GITHUB_REPOSITORY")
-
-	// Split the repo name into org and repo
 	org, repo := splitRepo(repo)
+	// Read the PR number from command line
+	pr, _ := strconv.Atoi(os.Args[1])
 
-	// Get the pr number from GITHUB_EVENT_PATH
-	eventPath := os.Getenv("GITHUB_REF")
-	eventPathSplit := strings.Split(eventPath, "/")
-	prNum, _ := strconv.Atoi(eventPathSplit[2])
-
-	approvePr("terraform-provider-blinkhealth", prNum, org)
-
+	// TODO - Validate atlantis plan was successful
+	// Approve the PR
+	approvePr(repo, pr, org)
+	// Apply changes
 	atlantisPath := os.Getenv("GHA_atlantis_path")
-
-	runPlan(org, repo, prNum, atlantisPath)
-
+	runApply(org, repo, pr, atlantisPath)
 }
