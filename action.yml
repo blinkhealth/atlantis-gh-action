@@ -25,5 +25,4 @@ runs:
       shell: bash
       env:
         GHA_atlantis_path: ${{ inputs.path }}
-        TF_VAR_gh_approve_token: ${{ inputs.gh_token }}
         TF_VAR_gh_api_token: ${{ inputs.gh_token }}

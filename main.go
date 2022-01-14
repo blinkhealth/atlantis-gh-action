@@ -13,17 +13,10 @@ import (
 	"golang.org/x/oauth2"
 )
 
+var client *github.Client
+var ctx context.Context = context.Background()
+
 func approvePr(repo string, prNum int, org string) {
-	ctx := context.Background()
-
-	token := os.Getenv("TF_VAR_gh_approve_token")
-
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: token},
-	)
-	tc := oauth2.NewClient(ctx, ts)
-
-	client := github.NewClient(tc)
 
 	event := "APPROVE"
 
@@ -34,6 +27,7 @@ func approvePr(repo string, prNum int, org string) {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println("Approved")
 }
 
 func getComments(ctx context.Context, client github.Client, threshold int, org string, repo string, prNum int) ([]*github.IssueComment, error) {
@@ -51,7 +45,7 @@ func getComments(ctx context.Context, client github.Client, threshold int, org s
 			return backoff.Permanent(err)
 		}
 
-		fmt.Printf("Current number of commets %v the target is %v\n", len(comments), threshold)
+		fmt.Printf("Current number of comments %v the target is %v\n", len(comments), threshold)
 
 		if len(comments) > threshold {
 			fmt.Println("OK")
@@ -86,7 +80,7 @@ func splitRepo(repo string) (string, string) {
 	return split[0], split[1]
 }
 
-func runPlan(org string, repo string, prNum int, atlantisPath string) {
+func waitPlan(org string, repo string, prNum int) {
 	ctx := context.Background()
 
 	token := os.Getenv("TF_VAR_gh_api_token")
@@ -105,34 +99,7 @@ func runPlan(org string, repo string, prNum int, atlantisPath string) {
 		panic(errors.New(errorStr))
 	}
 
-	bodyContent := comments[0].GetBody()
-
-	if strings.Contains(bodyContent, "Your atlantis.yaml config is up to date!") {
-		postComment(ctx, *client, "atlantis plan", org, repo, prNum)
-	} else {
-
-		errorStr := fmt.Sprintf("Error with altantis config step %s and pr %v", repo, prNum)
-		panic(errors.New(errorStr))
-	}
-
-	userNames := []string{"blinkhealth-welcome-to"}
-
-	reviewer := github.ReviewersRequest{Reviewers: userNames}
-
-	_, _, err = client.PullRequests.RequestReviewers(ctx, org, repo, prNum, reviewer)
-
-	if err != nil {
-		errorStr := fmt.Sprintf("unexpected error: %s", err.Error())
-		panic(errors.New(errorStr))
-	}
-
-	comments, err = getComments(ctx, *client, 2, org, repo, prNum)
-
-	if err != nil {
-		panic(errors.New("error with getting comments"))
-	}
-
-	bodyContent = comments[len(comments)-1].GetBody()
+	bodyContent := comments[len(comments)-1].GetBody()
 
 	if !strings.Contains(bodyContent, "Ran Plan for dir") {
 		fmt.Println(bodyContent)
@@ -143,62 +110,24 @@ func runPlan(org string, repo string, prNum int, atlantisPath string) {
 }
 
 func runApply(org string, repo string, prNum int, atlantisPath string) {
-	ctx := context.Background()
 
+	workspace := strings.ReplaceAll(atlantisPath, "/", "_")
+
+	comment := fmt.Sprintf("atlantis apply -d %s -w %s", atlantisPath, workspace)
+
+	postComment(ctx, *client, comment, org, repo, prNum)
+	fmt.Println(fmt.Sprintf("Commented `%s`", comment))
+}
+
+func main() {
+
+	// Initialize a GH API client
 	token := os.Getenv("TF_VAR_gh_api_token")
-
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
 	tc := oauth2.NewClient(ctx, ts)
-
-	client := github.NewClient(tc)
-
-	comments, err := getComments(ctx, *client, 0, org, repo, prNum)
-
-	if err != nil {
-		errorStr := fmt.Sprintf("unexpected error: %s", err.Error())
-		panic(errors.New(errorStr))
-	}
-
-	bodyContent := comments[0].GetBody()
-
-	if strings.Contains(bodyContent, "Your atlantis.yaml config is up to date!") {
-		postComment(ctx, *client, "atlantis plan", org, repo, prNum)
-	} else {
-
-		errorStr := fmt.Sprintf("Error with altantis config step %s and pr %v", repo, prNum)
-		panic(errors.New(errorStr))
-	}
-
-	userNames := []string{"blinkhealth-welcome-to"}
-
-	reviewer := github.ReviewersRequest{Reviewers: userNames}
-
-	_, _, err = client.PullRequests.RequestReviewers(ctx, org, repo, prNum, reviewer)
-
-	if err != nil {
-		errorStr := fmt.Sprintf("unexpected error: %s", err.Error())
-		panic(errors.New(errorStr))
-	}
-
-	comments, err = getComments(ctx, *client, 2, org, repo, prNum)
-
-	if err != nil {
-		panic(errors.New("error with getting comments"))
-	}
-
-	bodyContent = comments[len(comments)-1].GetBody()
-
-	if !strings.Contains(bodyContent, "Ran Plan for dir") {
-		fmt.Println(bodyContent)
-		errorStr := fmt.Sprintf("Error with plan on repo %s and pr %v", repo, prNum)
-
-		panic(errors.New(errorStr))
-	}
-}
-
-func main() {
+	client = github.NewClient(tc)
 
 	// Retrieve repo name and org from GHA context
 	repo := os.Getenv("GITHUB_REPOSITORY")
@@ -206,7 +135,11 @@ func main() {
 	// Read the PR number from command line
 	pr, _ := strconv.Atoi(os.Args[1])
 
-	// TODO - Validate atlantis plan was successful
+	fmt.Println(fmt.Sprintf("PROCESSING PR %s/%s/pull/%s", org, repo, strconv.Itoa(pr)))
+
+	// Wait for atlantis plan result to appear in PR
+	// 	TODO - Validate plan was successful
+	waitPlan(org, repo, pr)
 	// Approve the PR
 	approvePr(repo, pr, org)
 	// Apply changes
