@@ -15,6 +15,7 @@ import (
 
 var client *github.Client
 var ctx context.Context = context.Background()
+var atlantisPath string
 
 func approvePr(repo string, prNum int, org string) {
 
@@ -39,16 +40,18 @@ func getComments(ctx context.Context, client github.Client, threshold int, org s
 	i := 0
 
 	f := func() error {
+
+		fmt.Printf("Retrieving comments....")
+
 		comments, _, err = client.Issues.ListComments(ctx, org, repo, prNum, opt_cmt)
 		if err != nil {
 			fmt.Println(err)
 			return backoff.Permanent(err)
 		}
 
-		fmt.Printf("Current number of comments %v the target is %v\n", len(comments), threshold)
+		fmt.Println("current number of comments:", len(comments))
 
 		if len(comments) > threshold {
-			fmt.Println("OK")
 			return nil
 		}
 
@@ -80,17 +83,7 @@ func splitRepo(repo string) (string, string) {
 	return split[0], split[1]
 }
 
-func waitPlan(org string, repo string, prNum int) {
-	ctx := context.Background()
-
-	token := os.Getenv("TF_VAR_gh_api_token")
-
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: token},
-	)
-	tc := oauth2.NewClient(ctx, ts)
-
-	client := github.NewClient(tc)
+func waitPlan(org string, repo string, prNum int) string {
 
 	comments, err := getComments(ctx, *client, 0, org, repo, prNum)
 
@@ -102,11 +95,14 @@ func waitPlan(org string, repo string, prNum int) {
 	bodyContent := comments[len(comments)-1].GetBody()
 
 	if !strings.Contains(bodyContent, "Ran Plan for dir") {
-		fmt.Println(bodyContent)
-		errorStr := fmt.Sprintf("Error with plan on repo %s and pr %v", repo, prNum)
-
+		errorStr := fmt.Sprintf("Unexpected comment found")
+		fmt.Println(errorStr, ", please review:\n")
+		fmt.Println(bodyContent, "\n")
 		panic(errors.New(errorStr))
 	}
+	firstLine := strings.Split(bodyContent, "\n")[0]
+	fmt.Println(firstLine)
+	return firstLine
 }
 
 func runApply(org string, repo string, prNum int, atlantisPath string) {
@@ -122,7 +118,7 @@ func runApply(org string, repo string, prNum int, atlantisPath string) {
 func main() {
 
 	// Initialize a GH API client
-	token := os.Getenv("TF_VAR_gh_api_token")
+	token := os.Getenv("GITHUB_API_TOKEN")
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
@@ -139,10 +135,10 @@ func main() {
 
 	// Wait for atlantis plan result to appear in PR
 	// 	TODO - Validate plan was successful
-	waitPlan(org, repo, pr)
+	lastComment := waitPlan(org, repo, pr)
+	atlantisPath = strings.Split(lastComment, "`")[1]
 	// Approve the PR
 	approvePr(repo, pr, org)
 	// Apply changes
-	atlantisPath := os.Getenv("GHA_atlantis_path")
 	runApply(org, repo, pr, atlantisPath)
 }
