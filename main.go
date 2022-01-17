@@ -94,12 +94,21 @@ func waitPlan(org string, repo string, prNum int) string {
 
 	bodyContent := comments[len(comments)-1].GetBody()
 
+	// the comment expected is the output from atlantis plan
 	if !strings.Contains(bodyContent, "Ran Plan for dir") {
 		errorStr := fmt.Sprintf("Unexpected comment found")
 		fmt.Println(errorStr, ", please review:\n")
 		fmt.Println(bodyContent, "\n")
 		panic(errors.New(errorStr))
 	}
+	// fail if the result of the plan is not successful
+	if strings.Contains(bodyContent, "Plan Error") {
+		errorStr := fmt.Sprintf("Plan failed")
+		fmt.Println(errorStr, ", please review:\n")
+		fmt.Println(bodyContent, "\n")
+		panic(errors.New(errorStr))
+	}
+	// if plan was successful, return the line containing the terragrunt directory
 	firstLine := strings.Split(bodyContent, "\n")[0]
 	fmt.Println(firstLine)
 	return firstLine
@@ -136,7 +145,6 @@ func main() {
 	fmt.Println(fmt.Sprintf("PROCESSING PR %s/%s/pull/%s", org, repo, strconv.Itoa(pr)))
 
 	// Wait for atlantis plan result to appear in PR
-	// 	TODO - Validate plan was successful
 	lastComment := waitPlan(org, repo, pr)
 	atlantisPath = strings.Split(lastComment, "`")[1]
 	// Approve the PR
