@@ -113,6 +113,8 @@ func runApply(org string, repo string, prNum int, atlantisPath string) {
 
 	postComment(ctx, *client, comment, org, repo, prNum)
 	fmt.Println(fmt.Sprintf("Commented `%s`", comment))
+	fmt.Println("Waiting for apply to start...")
+	time.Sleep(15 * time.Second)
 }
 
 func main() {
