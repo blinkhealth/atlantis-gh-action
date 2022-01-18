@@ -16,3 +16,8 @@ jobs:
           pretty: "prettier"
           version_prefix: "v"
           title_prefix: "GitHub Action:"
+      - name: Commit changes
+        run: |
+          git add README.md
+          git commit -m "Updated README" | true
+          git push
