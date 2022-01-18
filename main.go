@@ -38,7 +38,7 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 	var err error
 	i := 0
 
-	fmt.Printf("Retrieving comments ... ")
+	fmt.Printf("Retrieving comments .")
 
 	f := func() error {
 
@@ -71,9 +71,8 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 		}
 
 		i += 1
-
 		fmt.Printf(".")
-		return errors.New("error")
+		return errors.New("Unexpected error")
 	}
 
 	err = backoff.RetryNotifyWithTimer(f, backoff.NewExponentialBackOff(), nil, nil)
@@ -116,7 +115,7 @@ func waitApply(org string, repo string, prNum int) {
 
 	// Wait for a comment with the output from Atlantis Apply
 	// Fail if Atlantis returns an error
-	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Apply for dir", "Apply Error", 30)
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Apply for dir", "Apply Error", 40)
 
 	if err != nil {
 		errorStr := fmt.Sprintf("Error: %s", err.Error())
