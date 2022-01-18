@@ -31,7 +31,7 @@ func approvePr(org string, repo string, prNum int) {
 	fmt.Println("Approved")
 }
 
-func waitForComment(ctx context.Context, client github.Client, org string, repo string, prNum int, match string) (*github.IssueComment, error) {
+func waitForComment(ctx context.Context, client github.Client, org string, repo string, prNum int, match string errorMatch string) (*github.IssueComment, error) {
 	opt_cmt := &github.IssueListCommentsOptions{}
 
 	var comments []*github.IssueComment
@@ -54,6 +54,11 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 			if strings.Contains(bodyContent, match) {
 				fmt.Println(" Result found")
 				return nil
+			}
+			if strings.Contains(bodyContent, errorMatch) {
+				fmt.Println(" Error found, latest comment:\n")
+				fmt.Println(bodyContent, "\n")
+				return backoff.Permanent(errors.New("Error found"))
 			}
 		}
 
@@ -92,24 +97,17 @@ func splitRepo(repo string) (string, string) {
 
 func waitPlan(org string, repo string, prNum int) string {
 
-	// wait for a comment with the output from Atlantis Plan
-	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Plan for dir")
+	// Wait for a comment with the output from Atlantis Plan
+	// Fail if Atlantis returns an error
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Plan for dir", "Plan Error")
 
 	if err != nil {
 		errorStr := fmt.Sprintf("Error: %s", err.Error())
 		panic(errors.New(errorStr))
 	}
 
-	bodyContent := comment.GetBody()
-
-	// fail if the result of the plan is not successful
-	if strings.Contains(bodyContent, "Plan Error") {
-		errorStr := fmt.Sprintf("Plan failed")
-		fmt.Println(errorStr, ", please review:\n")
-		fmt.Println(bodyContent, "\n")
-		panic(errors.New(errorStr))
-	}
 	// if plan was successful, return the line containing the terragrunt directory
+	bodyContent := comment.GetBody()
 	firstLine := strings.Split(bodyContent, "\n")[0]
 	fmt.Println(firstLine)
 	return firstLine
@@ -117,26 +115,18 @@ func waitPlan(org string, repo string, prNum int) string {
 
 func waitApply(org string, repo string, prNum int) {
 
-	// wait for a comment with the output from Atlantis Plan
-	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Apply for dir")
+	// Wait for a comment with the output from Atlantis Apply
+	// Fail if Atlantis returns an error
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Apply for dir", "Apply Error")
 
 	if err != nil {
 		errorStr := fmt.Sprintf("Error: %s", err.Error())
 		panic(errors.New(errorStr))
 	}
 
+	// Apply was successful, show output and move on
 	bodyContent := comment.GetBody()
-
-	// fail if the result of the plan is not successful
-	if strings.Contains(bodyContent, "Apply Error") {
-		errorStr := fmt.Sprintf("Apply failed")
-		fmt.Println(errorStr, ", please review:\n")
-		fmt.Println(bodyContent, "\n")
-		panic(errors.New(errorStr))
-	}
-	// apply was successful
-	firstLine := strings.Split(bodyContent, "\n")[0]
-	fmt.Println(firstLine)
+	fmt.Println(bodyContent, "\n")
 	fmt.Println("PR is OK to Merge!")
 }
 
