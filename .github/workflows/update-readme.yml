@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: bitflight-devops/github-action-readme-generator@v1.0.12
+      - uses: bitflight-devops/github-action-readme-generator@v1.0.12a
         with:
           action: "action.yml"
           readme: "README.md"
