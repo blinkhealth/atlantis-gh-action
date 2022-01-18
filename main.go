@@ -36,7 +36,7 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 
 	var comments []*github.IssueComment
 	var err error
-	i := 0
+	i := 1
 
 	fmt.Printf("Retrieving comments .")
 
@@ -61,7 +61,7 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 			}
 		}
 
-		if max_tries < i {
+		if max_tries == i {
 			if len(comments) > 0 {
 				bodyContent := comments[len(comments)-1].GetBody()
 				fmt.Println("Expected comment not found, latest comment:\n")
@@ -76,7 +76,11 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 	}
 
 	err = backoff.RetryNotifyWithTimer(f, backoff.NewExponentialBackOff(), nil, nil)
-	return comments[len(comments)-1], err
+	if len(comments) > 0 {
+		return comments[len(comments)-1], err
+	} else {
+		return nil, err
+	}
 }
 
 func postComment(ctx context.Context, client github.Client, msg string, org string, repo string, prNum int) {
