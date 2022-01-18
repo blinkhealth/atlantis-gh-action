@@ -17,7 +17,7 @@ var client *github.Client
 var ctx context.Context = context.Background()
 var atlantisPath string
 
-func approvePr(repo string, prNum int, org string) {
+func approvePr(org string, repo string, prNum int) {
 
 	event := "APPROVE"
 
@@ -31,17 +31,17 @@ func approvePr(repo string, prNum int, org string) {
 	fmt.Println("Approved")
 }
 
-func getComments(ctx context.Context, client github.Client, threshold int, org string, repo string, prNum int) ([]*github.IssueComment, error) {
+func waitForComment(ctx context.Context, client github.Client, org string, repo string, prNum int, match string) (*github.IssueComment, error) {
 	opt_cmt := &github.IssueListCommentsOptions{}
 
 	var comments []*github.IssueComment
 	var err error
-	tries := 20
+	max_tries := 20
 	i := 0
 
-	f := func() error {
+	fmt.Printf("Retrieving comments ... ")
 
-		fmt.Printf("Retrieving comments....")
+	f := func() error {
 
 		comments, _, err = client.Issues.ListComments(ctx, org, repo, prNum, opt_cmt)
 		if err != nil {
@@ -49,24 +49,31 @@ func getComments(ctx context.Context, client github.Client, threshold int, org s
 			return backoff.Permanent(err)
 		}
 
-		fmt.Println("current number of comments:", len(comments))
-
-		if len(comments) > threshold {
-			return nil
+		if len(comments) > 0 {
+			bodyContent := comments[len(comments)-1].GetBody()
+			if strings.Contains(bodyContent, match) {
+				fmt.Println(" Result found")
+				return nil
+			}
 		}
 
-		if tries < i {
-			return backoff.Permanent(errors.New("too may tries"))
+		if max_tries < i {
+			if len(comments) > 0 {
+				bodyContent := comments[len(comments)-1].GetBody()
+				fmt.Println("Expected comment not found, latest comment:\n")
+				fmt.Println(bodyContent, "\n")
+			}
+			return backoff.Permanent(errors.New("Timeout. Expected comment not found"))
 		}
 
 		i += 1
 
-		fmt.Printf("Trying to get comments currently on try %v of %v.\n", i, tries)
+		fmt.Printf(".")
 		return errors.New("error")
 	}
 
 	err = backoff.RetryNotifyWithTimer(f, backoff.NewExponentialBackOff(), nil, nil)
-	return comments, nil
+	return comments[len(comments)-1], err
 }
 
 func postComment(ctx context.Context, client github.Client, msg string, org string, repo string, prNum int) {
@@ -85,22 +92,16 @@ func splitRepo(repo string) (string, string) {
 
 func waitPlan(org string, repo string, prNum int) string {
 
-	comments, err := getComments(ctx, *client, 0, org, repo, prNum)
+	// wait for a comment with the output from Atlantis Plan
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Plan for dir")
 
 	if err != nil {
-		errorStr := fmt.Sprintf("unexpected error: %s", err.Error())
+		errorStr := fmt.Sprintf("Error: %s", err.Error())
 		panic(errors.New(errorStr))
 	}
 
-	bodyContent := comments[len(comments)-1].GetBody()
+	bodyContent := comment.GetBody()
 
-	// the comment expected is the output from atlantis plan
-	if !strings.Contains(bodyContent, "Ran Plan for dir") {
-		errorStr := fmt.Sprintf("Unexpected comment found")
-		fmt.Println(errorStr, ", please review:\n")
-		fmt.Println(bodyContent, "\n")
-		panic(errors.New(errorStr))
-	}
 	// fail if the result of the plan is not successful
 	if strings.Contains(bodyContent, "Plan Error") {
 		errorStr := fmt.Sprintf("Plan failed")
@@ -114,6 +115,31 @@ func waitPlan(org string, repo string, prNum int) string {
 	return firstLine
 }
 
+func waitApply(org string, repo string, prNum int) {
+
+	// wait for a comment with the output from Atlantis Plan
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Apply for dir")
+
+	if err != nil {
+		errorStr := fmt.Sprintf("Error: %s", err.Error())
+		panic(errors.New(errorStr))
+	}
+
+	bodyContent := comment.GetBody()
+
+	// fail if the result of the plan is not successful
+	if strings.Contains(bodyContent, "Apply Error") {
+		errorStr := fmt.Sprintf("Apply failed")
+		fmt.Println(errorStr, ", please review:\n")
+		fmt.Println(bodyContent, "\n")
+		panic(errors.New(errorStr))
+	}
+	// apply was successful
+	firstLine := strings.Split(bodyContent, "\n")[0]
+	fmt.Println(firstLine)
+	fmt.Println("PR is OK to Merge!")
+}
+
 func runApply(org string, repo string, prNum int, atlantisPath string) {
 
 	workspace := strings.ReplaceAll(atlantisPath, "/", "_")
@@ -123,7 +149,6 @@ func runApply(org string, repo string, prNum int, atlantisPath string) {
 	postComment(ctx, *client, comment, org, repo, prNum)
 	fmt.Println(fmt.Sprintf("Commented `%s`", comment))
 	fmt.Println("Waiting for apply to start...")
-	time.Sleep(15 * time.Second)
 }
 
 func main() {
@@ -148,7 +173,9 @@ func main() {
 	lastComment := waitPlan(org, repo, pr)
 	atlantisPath = strings.Split(lastComment, "`")[1]
 	// Approve the PR
-	approvePr(repo, pr, org)
+	approvePr(org, repo, pr)
 	// Apply changes
 	runApply(org, repo, pr, atlantisPath)
+	// Wait for atlantis apply result to appear in PR
+	waitApply(org, repo, pr)
 }
