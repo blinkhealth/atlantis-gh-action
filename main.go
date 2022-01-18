@@ -31,12 +31,11 @@ func approvePr(org string, repo string, prNum int) {
 	fmt.Println("Approved")
 }
 
-func waitForComment(ctx context.Context, client github.Client, org string, repo string, prNum int, match string errorMatch string) (*github.IssueComment, error) {
+func waitForComment(ctx context.Context, client github.Client, org string, repo string, prNum int, match string, errorMatch string, max_tries int) (*github.IssueComment, error) {
 	opt_cmt := &github.IssueListCommentsOptions{}
 
 	var comments []*github.IssueComment
 	var err error
-	max_tries := 20
 	i := 0
 
 	fmt.Printf("Retrieving comments ... ")
@@ -99,7 +98,7 @@ func waitPlan(org string, repo string, prNum int) string {
 
 	// Wait for a comment with the output from Atlantis Plan
 	// Fail if Atlantis returns an error
-	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Plan for dir", "Plan Error")
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Plan for dir", "Plan Error", 10)
 
 	if err != nil {
 		errorStr := fmt.Sprintf("Error: %s", err.Error())
@@ -117,7 +116,7 @@ func waitApply(org string, repo string, prNum int) {
 
 	// Wait for a comment with the output from Atlantis Apply
 	// Fail if Atlantis returns an error
-	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Apply for dir", "Apply Error")
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Apply for dir", "Apply Error", 30)
 
 	if err != nil {
 		errorStr := fmt.Sprintf("Error: %s", err.Error())
