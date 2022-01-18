@@ -1,2 +1,8 @@
-# atlantis-gh-action
-Action for automating Atlantis operations
+
+<!-- start title -->
+
+<!-- start description -->
+
+<!-- start usage -->
+
+<!-- start inputs -->
