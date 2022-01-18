@@ -18,6 +18,8 @@ jobs:
           title_prefix: "GitHub Action:"
       - name: Commit changes
         run: |
+          git config --global user.email infra-github@blinkhealth.com
+          git config --global user.name blinkhealthgithub
           git add README.md
           git commit -m "Updated README" | true
           git push
