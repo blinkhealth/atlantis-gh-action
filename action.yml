@@ -1,0 +1,24 @@
+name: 'Atlantis Automation'
+description: 'Checks for result of atlantis plan, approves PR, and runs atlantis apply'
+
+inputs:
+  pr_number: 
+    description: 'PR number'
+    required: true
+  github_token:
+    description: 'Token to use for reviewing and posting comments to the PR'
+    required: true
+
+runs:
+  using: "composite"
+
+  steps:
+    - uses: actions/setup-go@v2
+      with:
+        go-version: '^1.17.2'
+    - run: |
+        cd $GITHUB_ACTION_PATH
+        go run ./main.go ${{ inputs.pr_number }}
+      shell: bash
+      env:
+        GITHUB_API_TOKEN: ${{ inputs.github_token }}

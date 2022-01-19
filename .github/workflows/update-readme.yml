@@ -1,0 +1,26 @@
+name: Update README
+on:
+  push:
+    branches: [main]
+  
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: bitflight-devops/github-action-readme-generator@v1.0.12a
+        with:
+          action: "action.yml"
+          readme: "README.md"
+          owner: "blinkhealth"
+          repo: "atlantis-gh-action"
+          pretty: "prettier"
+          version_prefix: "v"
+          title_prefix: "GitHub Action:"
+      - name: Commit changes
+        run: |
+          git config --global user.email infra-github@blinkhealth.com
+          git config --global user.name blinkhealthgithub
+          git add README.md
+          git commit -m "Updated README" | true
+          git push
