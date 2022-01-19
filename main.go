@@ -101,17 +101,31 @@ func waitPlan(org string, repo string, prNum int) string {
 
 	// Wait for a comment with the output from Atlantis Plan
 	// Fail if Atlantis returns an error
+
+	var bodyContent string
+	var firstLine string
+
 	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Plan for dir", "Plan Error", 10)
+	if comment != nil {
+		bodyContent = comment.GetBody()
+		firstLine = strings.Split(bodyContent, "\n")[0]
+		fmt.Println(firstLine)
+	}
 
 	if err != nil {
 		errorStr := fmt.Sprintf("Error: %s", err.Error())
-		panic(errors.New(errorStr))
+		// known Atlantis issue, sometimes autoplan fails to retrieve PR data, we just need to run `atlantis plan` again
+		if strings.Contains(bodyContent, "404 Not Found") {
+			postComment(ctx, *client, "atlantis plan", org, repo, prNum)
+			return waitPlan(org, repo, prNum)
+		} else {
+			// for other errors, abort execution
+			panic(errors.New(errorStr))
+		}
 	}
 
 	// if plan was successful, return the line containing the terragrunt directory
-	bodyContent := comment.GetBody()
-	firstLine := strings.Split(bodyContent, "\n")[0]
-	fmt.Println(firstLine)
+
 	return firstLine
 }
 
