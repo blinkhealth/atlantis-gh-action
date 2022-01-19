@@ -50,14 +50,14 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 
 		if len(comments) > 0 {
 			bodyContent := comments[len(comments)-1].GetBody()
-			if strings.Contains(bodyContent, match) {
-				fmt.Println(" Result found")
-				return nil
-			}
 			if strings.Contains(bodyContent, errorMatch) {
 				fmt.Println(" Error found, latest comment:\n")
 				fmt.Println(bodyContent, "\n")
 				return backoff.Permanent(errors.New("Error found"))
+			}
+			if strings.Contains(bodyContent, match) {
+				fmt.Println(" Result found")
+				return nil
 			}
 		}
 
@@ -125,7 +125,6 @@ func waitPlan(org string, repo string, prNum int) string {
 	}
 
 	// if plan was successful, return the line containing the terragrunt directory
-
 	return firstLine
 }
 
