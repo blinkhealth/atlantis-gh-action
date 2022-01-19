@@ -1,6 +1,7 @@
 name: Update README
 on:
   push:
+    branches: [main]
   
 jobs:
   update-readme:
