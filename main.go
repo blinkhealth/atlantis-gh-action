@@ -17,16 +17,15 @@ var client *github.Client
 var ctx context.Context = context.Background()
 var atlantisPath string
 
-func getPrStatus(ctx context.Context, client github.Client, org string, repo string, prNum int) string {
-	var pr []*github.PullRequest
+func prIsMerged(ctx context.Context, client github.Client, org string, repo string, prNum int) bool {
+	var pr *github.PullRequest
 	var err error
-	pr, _, error = client.PullRequests.Get(ctx, org, repo, prNum)
+	pr, _, err = client.PullRequests.Get(ctx, org, repo, prNum)
 
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Status:", pr.State)
-	return pr.State
+	return *pr.Merged
 }
 
 func approvePr(org string, repo string, prNum int) {
@@ -187,7 +186,7 @@ func main() {
 	fmt.Println(fmt.Sprintf("PROCESSING PR %s/%s/pull/%s", org, repo, strconv.Itoa(pr)))
 
 	// Ask if PR is already merged?
-	if getPrStatus == "Merged" {
+	if prIsMerged(ctx, *client, org, repo, pr) {
 		//	if so, finish
 		fmt.Println("This PR has already been Merged, skipping.")
 	} else {
