@@ -116,7 +116,7 @@ func waitPlan(org string, repo string, prNum int) string {
 	var bodyContent string
 	var firstLine string
 
-	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Plan for dir", "Plan Error", 10)
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Plan for dir", "Plan Error", 20)
 	if comment != nil {
 		bodyContent = comment.GetBody()
 		firstLine = strings.Split(bodyContent, "\n")[0]
@@ -143,7 +143,7 @@ func waitApply(org string, repo string, prNum int) {
 
 	// Wait for a comment with the output from Atlantis Apply
 	// Fail if Atlantis returns an error
-	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Apply for dir", "Apply Error", 40)
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Apply for dir", "Apply Error", 50)
 
 	if err != nil {
 		errorStr := fmt.Sprintf("Error: %s", err.Error())
