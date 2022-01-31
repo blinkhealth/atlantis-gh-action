@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/go-github/v39/github"
@@ -193,8 +194,9 @@ func main() {
 		// Wait for atlantis plan result to appear in PR
 		lastComment := waitPlan(org, repo, pr)
 		atlantisPath = strings.Split(lastComment, "`")[1]
-		// Approve the PR
+		// Approve the PR and wait a couple seconds to ensure apply is not done prematurely
 		approvePr(org, repo, pr)
+		time.Sleep(2 * time.Second)
 		// Apply changes
 		runApply(org, repo, pr, atlantisPath)
 		// Wait for atlantis apply result to appear in PR
