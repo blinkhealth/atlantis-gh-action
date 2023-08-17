@@ -15,12 +15,12 @@ import (
 )
 
 const (
-	TimeOut             = 2 * time.Second
+	timeOut             = 2 * time.Second
 	initialInterval     = 800 * time.Millisecond
-	randomizationFactor = .5
+	randomizationFactor = 1.5
 	multiplier          = 3
 	maxInterval         = 15 * time.Second
-	maxElapsedTime      = 3 * time.Minute
+	maxElapsedTime      = 20 * time.Minute
 	BlinkGitHubUser     = "blinkhealthgithub"
 
 	/* Time elapsed between pull request 'create time' and the time it took
@@ -36,9 +36,7 @@ var ctx context.Context = context.Background()
 var atlantisPath string
 
 func getPrCreatedAt(ctx context.Context, client github.Client, org string, repo string, prNum int) github.Timestamp {
-	var pr *github.PullRequest
-	var err error
-	pr, _, err = client.PullRequests.Get(ctx, org, repo, prNum)
+    pr, _, err := client.PullRequests.Get(ctx, org, repo, prNum)
 	if err != nil {
 		panic(err)
 	}
@@ -46,9 +44,7 @@ func getPrCreatedAt(ctx context.Context, client github.Client, org string, repo 
 }
 
 func prIsMerged(ctx context.Context, client github.Client, org string, repo string, prNum int) bool {
-	var pr *github.PullRequest
-	var err error
-	pr, _, err = client.PullRequests.Get(ctx, org, repo, prNum)
+    pr, _, err := client.PullRequests.Get(ctx, org, repo, prNum)
 
 	if err != nil {
 		panic(err)
@@ -70,15 +66,21 @@ func approvePr(org string, repo string, prNum int) {
 	fmt.Println("Approved")
 }
 
-func waitForComment(ctx context.Context, client github.Client, org string, repo string, prNum int, match string, errorMatch string, max_tries int) (*github.IssueComment, error) {
+func waitForComment(ctx context.Context, client github.Client, org string, repo string, prNum int, match string, errorMatch string) (*github.IssueComment, error) {
 
-	// EMPTY options - because it don't work!
+	/* EMPTY options - because it don't work!
+     * Instead, iterate over the comments (below) in reverse order because
+     * github API sux  or I can't seem to figure out how to sort by date. FWIW,
+     * 'curl' call  returns the same order as this code does - and implies their
+     * API does not honor query parameters - giving up and explore comments
+     * backwards
+     */
 	opt := &github.IssueListCommentsOptions{}
 
 	fmt.Println("Retrieving comments...")
 
 	// callback to pass to the retry
-	f := func() (*github.IssueComment, error) {
+	commentSearch := func() (*github.IssueComment, error) {
 		prc := getPrCreatedAt(ctx, client, org, repo, prNum)
 		comments, _, err := client.Issues.ListComments(ctx, org, repo, prNum, opt)
 		if err != nil {
@@ -86,15 +88,11 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 			return nil, backoff.Permanent(err)
 		}
 
-        /* Iterate over the comments in reverse order because github api sux
-         * or I can't seem to figure out how to sort by date. FWIW, 'curl' call
-         * returns the same order as this code does - and implies their API
-         * does not honor query parameters - giving up and explore comments
-         * backwards
-         */
 		for idx := len(comments) - 1; idx >= 0; idx-- {
 			c := comments[idx]
 			u := c.GetUser()
+            fmt.Printf("%s\n", *u.Login)
+            continue
 			if *u.Login == BlinkGitHubUser {
 				bodyContent := c.GetBody()
 
@@ -107,8 +105,8 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 
 				/* Brute force ignore anything that takes longer.  If we fall
 				 * into this clause - figure out why it takes so long for
-				 * Atlantis to emit a plan or increase the delta.  Increasing
-				 * the should probably be the last resort.
+				 * Atlantis to emit/apply a plan or increase the delta.
+                 * Increasing the should probably be the last resort.
 				 */
 				planCreated := c.GetCreatedAt()
 				td := int(prc.Sub(*planCreated.GetTime()).Abs().Seconds())
@@ -134,7 +132,7 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 	exp.MaxInterval = maxInterval
 	exp.MaxElapsedTime = maxElapsedTime
 
-	comment, err := backoff.RetryNotifyWithTimerAndData(f, exp, nil, nil)
+	comment, err := backoff.RetryNotifyWithTimerAndData(commentSearch, exp, nil, nil)
 
 	if err != nil {
 		return nil, err
@@ -164,7 +162,7 @@ func waitPlan(org string, repo string, prNum int) string {
 	var bodyContent string
 	var firstLine string
 
-	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Plan for dir", "Plan Error", 20)
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Plan for dir", "Plan Error")
 
 	if err != nil {
 		errorStr := fmt.Sprintf("Error: %s", err.Error())
@@ -177,7 +175,6 @@ func waitPlan(org string, repo string, prNum int) string {
 			// for other errors, abort execution
 			panic(errors.New(errorStr))
 		}
-		fmt.Printf("ended up here: %v\n")
 	}
 
 	// if plan was successful, return the line containing the terragrunt directory
@@ -191,7 +188,7 @@ func waitApply(org string, repo string, prNum int) {
 
 	// Wait for a comment with the output from Atlantis Apply
 	// Fail if Atlantis returns an error
-	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Apply for dir", "Apply Error", 2)
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Apply for dir", "Apply Error")
 
 	if err != nil {
 		errorStr := fmt.Sprintf("Error: %s", err.Error())
@@ -238,7 +235,7 @@ func main() {
 		fmt.Printf("comment: %v\n", foundComment[len(foundComment)-1])
 		atlantisPath = strings.Split(foundComment, "`")[1]
 		approvePr(org, repo, pr)
-		time.Sleep(TimeOut)
+		time.Sleep(timeOut)
 		runApply(org, repo, pr, atlantisPath)
 		waitApply(org, repo, pr)
 	}
