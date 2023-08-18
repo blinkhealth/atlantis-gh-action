@@ -21,14 +21,14 @@ const (
 	multiplier          = 3
 	maxInterval         = 15 * time.Second
 	maxElapsedTime      = 20 * time.Minute
-	BlinkGitHubUser     = "blinkhealthgithub"
+	blinkGitHubUser     = "blinkhealthgithub"
 
 	/* Time elapsed between pull request 'create time' and the time it took
 	 * Atlantis to create the comment - which is the terragrunt plan.  Multiple
 	 * comments from Atlantis __can__ exist, but we only care about the most
 	 * recent one.
 	 */
-	AcceptableTimeDelta = 65 //seconds
+	acceptableTimeDelta = 65 //seconds
 )
 
 var client *github.Client
@@ -53,11 +53,8 @@ func prIsMerged(ctx context.Context, client github.Client, org string, repo stri
 }
 
 func approvePr(org string, repo string, prNum int) {
-
 	event := "APPROVE"
-
 	review := &github.PullRequestReviewRequest{Event: &event}
-
 	_, _, err := client.PullRequests.CreateReview(ctx, org, repo, prNum, review)
 
 	if err != nil {
@@ -81,7 +78,7 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 
 	// callback to pass to the retry
 	commentSearch := func() (*github.IssueComment, error) {
-		prc := getPrCreatedAt(ctx, client, org, repo, prNum)
+		prCreatedTs := getPrCreatedAt(ctx, client, org, repo, prNum)
 		comments, _, err := client.Issues.ListComments(ctx, org, repo, prNum, opt)
 		if err != nil {
 			fmt.Println(err)
@@ -89,12 +86,10 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 		}
 
 		for idx := len(comments) - 1; idx >= 0; idx-- {
-			c := comments[idx]
-			u := c.GetUser()
-            fmt.Printf("%s\n", *u.Login)
-            continue
-			if *u.Login == BlinkGitHubUser {
-				bodyContent := c.GetBody()
+			comment := comments[idx]
+			user := comment.GetUser()
+			if *user.Login == blinkGitHubUser {
+				bodyContent := comment.GetBody()
 
 				// quickly fail on error
 				if strings.Contains(bodyContent, errorMatch) {
@@ -108,18 +103,18 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 				 * Atlantis to emit/apply a plan or increase the delta.
                  * Increasing the should probably be the last resort.
 				 */
-				planCreated := c.GetCreatedAt()
-				td := int(prc.Sub(*planCreated.GetTime()).Abs().Seconds())
-				if strings.Contains(bodyContent, match) && td <= AcceptableTimeDelta {
-					fmt.Printf("Result found: user: %s comment created at:[%s] pr created at:[%s] time delta: %d\n", *u.Login, c.GetCreatedAt(), prc, td)
-					return c, nil
-				} else if strings.Contains(bodyContent, match) && td > AcceptableTimeDelta {
-					errMsg := fmt.Sprintf("Took longer than %d sec to emit a plan. PR created @ %s; plan created @ %s", td, prc, planCreated)
+				planCreated := comment.GetCreatedAt()
+				td := int(prCreatedTs.Sub(*planCreated.GetTime()).Abs().Seconds())
+				if strings.Contains(bodyContent, match) && td <= acceptableTimeDelta {
+					fmt.Printf("Result found: user: %s comment created at:[%s] pr created at:[%s] time delta: %d\n", *user.Login, comment.GetCreatedAt(), prCreatedTs, td)
+					return comment, nil
+				} else if strings.Contains(bodyContent, match) && td > acceptableTimeDelta {
+					errMsg := fmt.Sprintf("Took longer than %d sec to emit a plan. PR created @ %s; plan created @ %s", td, prCreatedTs, planCreated)
 					return nil, errors.New(errMsg)
 				}
 			}
 			// otherwise skip the PR message
-			fmt.Printf("Skipping: user: %s comment created at:[%s] pr created at:[%s]\n", *u.Login, c.GetCreatedAt(), prc)
+			fmt.Printf("Skipping: user: %s comment created at:[%s] pr created at:[%s]\n", *user.Login, comment.GetCreatedAt(), prCreatedTs)
 		}
 		errMsg := fmt.Sprintf("Unexpected error - reached Timeout of ~ %.1f minutes.", maxElapsedTime.Minutes())
 		return nil, errors.New(errMsg)
@@ -154,11 +149,8 @@ func splitRepo(repo string) (string, string) {
 	return split[0], split[1]
 }
 
+// Wait for a comment with the output from Atlantis Plan, fail if Atlantis returns an error
 func waitPlan(org string, repo string, prNum int) string {
-
-	// Wait for a comment with the output from Atlantis Plan
-	// Fail if Atlantis returns an error
-
 	var bodyContent string
 	var firstLine string
 
@@ -166,7 +158,6 @@ func waitPlan(org string, repo string, prNum int) string {
 
 	if err != nil {
 		errorStr := fmt.Sprintf("Error: %s", err.Error())
-		fmt.Printf("why this error: %v\n", errorStr)
 		// known Atlantis issue, sometimes autoplan fails to retrieve PR data, we just need to run `atlantis plan` again
 		if strings.Contains(bodyContent, "404 Not Found") {
 			postComment(ctx, *client, "atlantis plan", org, repo, prNum)
@@ -202,9 +193,7 @@ func waitApply(org string, repo string, prNum int) {
 }
 
 func runApply(org string, repo string, prNum int, atlantisPath string) {
-
 	workspace := strings.ReplaceAll(atlantisPath, "/", "_")
-
 	comment := fmt.Sprintf("atlantis apply -d %s -w %s", atlantisPath, workspace)
 
 	postComment(ctx, *client, comment, org, repo, prNum)
@@ -213,7 +202,6 @@ func runApply(org string, repo string, prNum int, atlantisPath string) {
 }
 
 func main() {
-
 	token := os.Getenv("GITHUB_API_TOKEN")
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
@@ -231,11 +219,9 @@ func main() {
 		fmt.Println("This PR has already been Merged, skipping.")
 	} else {
 		foundComment := waitPlan(org, repo, pr)
-		fmt.Printf("comment size: %v\n", len(foundComment))
-		fmt.Printf("comment: %v\n", foundComment[len(foundComment)-1])
 		atlantisPath = strings.Split(foundComment, "`")[1]
 		approvePr(org, repo, pr)
-		time.Sleep(timeOut)
+		time.Sleep(timeOut) // TODO shouldn't really need this maybe take out.
 		runApply(org, repo, pr, atlantisPath)
 		waitApply(org, repo, pr)
 	}
