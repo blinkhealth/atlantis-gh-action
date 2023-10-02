@@ -1,3 +1,13 @@
+/*
+    This action looks for comments from Atlantis as atlantis emits plan.
+    Upon detecting a plan has been emitted, it will apply the plan.
+
+    To test locally:
+    export GITHUB_REPOSITORY="blinkhealth/$repo_name"
+    go mod init atlantis-gh-action
+    go build & ./atlantis-gh-action 22
+*/
+
 package main
 
 import (
@@ -28,7 +38,12 @@ const (
 	 * comments from Atlantis __can__ exist, but we only care about the most
 	 * recent one.
 	 */
-	acceptableTimeDelta = 65 //seconds
+	acceptablePlanElapsedTolerance = 65 //seconds
+	acceptableApplyElapsedTolerance = 120 //seconds
+	planComment = "Ran Plan for dir"
+	planError = "Plan Error"
+	applyComment = "Ran Apply for dir"
+	applyError = "Apply Error"
 )
 
 var client *github.Client
@@ -52,6 +67,19 @@ func prIsMerged(ctx context.Context, client github.Client, org string, repo stri
 	return *pr.Merged
 }
 
+func getCommentElapsedTolerance(match string) (int, error) {
+	if match == "" {
+		return acceptablePlanElapsedTolerance, nil
+	}
+	if match == "" {
+		//return acceptableApplyElapsedTolerance, nil
+		return acceptablePlanElapsedTolerance, nil
+	}
+}
+
+	return nil, "Expected comment match string not provided. Maybe add condition for here for the expected comment to match on."
+}
+
 func approvePr(org string, repo string, prNum int) {
 	event := "APPROVE"
 	review := &github.PullRequestReviewRequest{Event: &event}
@@ -73,8 +101,8 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
      * backwards
      */
 	opt := &github.IssueListCommentsOptions{}
-
 	fmt.Println("Retrieving comments...")
+	acceptableTimeDelta := getCommentElapsedTolerance()
 
 	// callback to pass to the retry
 	commentSearch := func() (*github.IssueComment, error) {
@@ -103,13 +131,14 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 				 * Atlantis to emit/apply a plan or increase the delta.
                  * Increasing the should probably be the last resort.
 				 */
-				planCreated := comment.GetCreatedAt()
-				td := int(prCreatedTs.Sub(*planCreated.GetTime()).Abs().Seconds())
+				commentCreated := comment.GetCreatedAt()
+				td := int(prCreatedTs.Sub(*commentCreated.GetTime()).Abs().Seconds())
+				fmt.Printf("Comment [%s] created at: [%s]; seconds-delta since PR-created: [%d]", match, commentCreated.GetTime(), td)
 				if strings.Contains(bodyContent, match) && td <= acceptableTimeDelta {
 					fmt.Printf("Result found: user: %s comment created at:[%s] pr created at:[%s] time delta: %d\n", *user.Login, comment.GetCreatedAt(), prCreatedTs, td)
 					return comment, nil
 				} else if strings.Contains(bodyContent, match) && td > acceptableTimeDelta {
-					errMsg := fmt.Sprintf("Took longer than %d sec to emit a plan. PR created @ %s; plan created @ %s", td, prCreatedTs, planCreated)
+					errMsg := fmt.Sprintf("Took longer than [%d] sec to emit a plan. PR created @ [%s]; plan created @ %s", td, prCreatedTs, commentCreated)
 					return nil, errors.New(errMsg)
 				}
 			}
@@ -154,7 +183,7 @@ func waitPlan(org string, repo string, prNum int) string {
 	var bodyContent string
 	var firstLine string
 
-	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Plan for dir", "Plan Error")
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, planComment, planError)
 
 	if err != nil {
 		errorStr := fmt.Sprintf("Error: %s", err.Error())
@@ -179,7 +208,7 @@ func waitApply(org string, repo string, prNum int) {
 
 	// Wait for a comment with the output from Atlantis Apply
 	// Fail if Atlantis returns an error
-	comment, err := waitForComment(ctx, *client, org, repo, prNum, "Ran Apply for dir", "Apply Error")
+	comment, err := waitForComment(ctx, *client, org, repo, prNum, applyComment, applyError)
 
 	if err != nil {
 		errorStr := fmt.Sprintf("Error: %s", err.Error())
@@ -222,7 +251,7 @@ func main() {
 		atlantisPath = strings.Split(foundComment, "`")[1]
 		approvePr(org, repo, pr)
 		time.Sleep(timeOut) // TODO shouldn't really need this maybe take out.
-		runApply(org, repo, pr, atlantisPath)
+		//runApply(org, repo, pr, atlantisPath)
 		waitApply(org, repo, pr)
 	}
 }
