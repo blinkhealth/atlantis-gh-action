@@ -4,7 +4,7 @@
 
 	The comment search is performed using exponential backoff and can be tuned
 	with the following constants:
-    - initialInterval, randomizationFactor, multiplier, maxInterval, maxElapsedTime
+	- initialInterval, randomizationFactor, multiplier, maxInterval, maxElapsedTime
 	- more infor can be found in the `exponential.go`
 		- https://github.com/cenkalti/backoff/blob/a83af7fa09801a4a887cfe7c8472c12c76e8a468/exponential.go
 
