@@ -159,8 +159,8 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 				td = int(prCreatedTs.Sub(*commentCreated.GetTime()).Abs().Seconds())
 				fmt.Printf("Looking for [%s] elapsed (since start)[%.3fs] -- (since last check)[%.3fs]\n", match, currentElapsedTime.Seconds(), elapsedTime.Seconds())
 
-				fmt.printf("td [%d] <= acceptableTimeDelta[%d] -  %s", td, acceptableTimeDelta, (td <= acceptableTimeDelta))
-				fmt.printf("match [%s] with bodyContent -  %s", match, strings.Contains(bodyContent, match))
+				fmt.Printf("td [%d] <= acceptableTimeDelta[%d] -  %s", td, acceptableTimeDelta, (td <= acceptableTimeDelta))
+				fmt.Printf("match [%s] with bodyContent -  %s", match, strings.Contains(bodyContent, match))
 
 				if strings.Contains(bodyContent, match) && td <= acceptableTimeDelta {
 					fmt.Printf("Result found for [%s] user: [%s] PR created [%s] comment created [%s] time delta [%d]\n", match, *user.Login, prCreatedTs, comment.GetCreatedAt(), td)
