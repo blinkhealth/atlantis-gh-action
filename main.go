@@ -123,6 +123,7 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 	// callback to pass to the retry
 	commentSearch := func() (*github.IssueComment, error) {
 		// time tracking metric
+		var td int = 0
 		currentElapsedTime = exp.GetElapsedTime() * time.Nanosecond
 		elapsedTime = currentElapsedTime - oldElapsedTime
 		oldElapsedTime = currentElapsedTime
@@ -153,7 +154,7 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 				 * Increasing the should probably be the last resort.
 				 */
 				commentCreated := comment.GetCreatedAt()
-				td := int(prCreatedTs.Sub(*commentCreated.GetTime()).Abs().Seconds())
+				td = int(prCreatedTs.Sub(*commentCreated.GetTime()).Abs().Seconds())
 				fmt.Printf("Looking for [%s] elapsed (since start)[%.3fs] -- (since last check)[%.3fs]\n", match, currentElapsedTime.Seconds(), elapsedTime.Seconds())
 
 				if strings.Contains(bodyContent, match) && td <= acceptableTimeDelta {
