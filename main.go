@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	timeOut             = 2 * time.Second
+	timeOut             = 20 * time.Second
 	initialInterval     = 800 * time.Millisecond
 	randomizationFactor = 0.5
 	multiplier          = 3
@@ -170,10 +170,10 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 					return nil, errors.New(errMsg)
 				}
 
-				fmt.Printf("no match, match [%s] against body:[%s]\n", match, bodyContent)
+				fmt.Printf("no match, match [%s] against body:[%s]\n", match, bodyContent[0:100])
 			}
 			// otherwise skip the PR message
-			fmt.Printf("Skipping comment [%s] time delta[%ds] user [%s] comment created at [%s] PR created at [%s]\n", match, td, *user.Login, comment.GetCreatedAt(), prCreatedTs)
+			//fmt.Printf("Skipping comment [%s] time delta[%ds] user [%s] comment created at [%s] PR created at [%s]\n", match, td, *user.Login, comment.GetCreatedAt(), prCreatedTs)
 		}
 		errMsg := fmt.Sprintf("Unexpected error - reached Timeout of ~ %.1f minutes.", maxElapsedTime.Minutes())
 		return nil, errors.New(errMsg)
