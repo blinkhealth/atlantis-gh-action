@@ -274,9 +274,9 @@ func main() {
 	} else {
 		foundComment := waitPlan(org, repo, pr)
 		atlantisPath = strings.Split(foundComment, "`")[1]
-		//approvePr(org, repo, pr)
+		approvePr(org, repo, pr)
 		//time.Sleep(timeOut) // TODO shouldn't really need this maybe take out.
-		//runApply(org, repo, pr, atlantisPath)
+		runApply(org, repo, pr, atlantisPath)
 		waitApply(org, repo, pr)
 	}
 }
