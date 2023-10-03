@@ -30,9 +30,8 @@ const (
 	randomizationFactor = 0.5
 	multiplier          = 3
 	// Lower maxInterval increases the retry frequency, scoped to maxElapsedTime
-	//maxInterval     = 10 * time.Second
+	maxInterval = 10 * time.Second
 	//maxElapsedTime  = 15 * time.Minute
-	maxInterval     = 1 * time.Second
 	maxElapsedTime  = 7 * time.Minute
 	blinkGitHubUser = "blinkhealthgithub"
 
@@ -42,7 +41,7 @@ const (
 	 * recent one.
 	 */
 	acceptablePlanElapsedTolerance  = 65  //seconds
-	acceptableApplyElapsedTolerance = 120 //seconds
+	acceptableApplyElapsedTolerance = 300 //seconds
 	planComment                     = "Ran Plan for dir"
 	planError                       = "Plan Error"
 	applyComment                    = "Ran Apply for dir"
