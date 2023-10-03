@@ -131,6 +131,7 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 		oldElapsedTime = currentElapsedTime
 
 		prCreatedTs := getPrCreatedAt(ctx, client, org, repo, prNum)
+		fmt.Println("Getting list of comments.....")
 		comments, _, err := client.Issues.ListComments(ctx, org, repo, prNum, opt)
 		if err != nil {
 			fmt.Println(err)
@@ -159,7 +160,7 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 				td = int(prCreatedTs.Sub(*commentCreated.GetTime()).Abs().Seconds())
 				fmt.Printf("Looking for [%s] elapsed (since start)[%.3fs] -- (since last check)[%.3fs]\n", match, currentElapsedTime.Seconds(), elapsedTime.Seconds())
 
-				fmt.Printf("td [%d] <= acceptableTimeDelta[%d] -  %v\n", td, acceptableTimeDelta, (td <= acceptableTimeDelta))
+				fmt.Printf("td [%d] <= acceptableTimeDelta[%d] -  %v - num comments[%d]\n", td, acceptableTimeDelta, (td <= acceptableTimeDelta), len(comments))
 				fmt.Printf("match [%s] with bodyContent -  %v\n", match, strings.Contains(bodyContent, match))
 
 				if strings.Contains(bodyContent, match) && td <= acceptableTimeDelta {
