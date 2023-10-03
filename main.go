@@ -25,14 +25,14 @@ import (
 )
 
 const (
-	timeOut             = 20 * time.Second
-	initialInterval     = 800 * time.Millisecond
-	randomizationFactor = 0.5
+	timeOut = 20 * time.Second
+	//initialInterval     = 800 * time.Millisecond
+	initialInterval     = 2 * time.Second
+	randomizationFactor = 0.05
 	multiplier          = 3
 	// Lower maxInterval increases the retry frequency, scoped to maxElapsedTime
-	maxInterval = 10 * time.Second
-	//maxElapsedTime  = 15 * time.Minute
-	maxElapsedTime  = 7 * time.Minute
+	maxInterval     = 60 * time.Second
+	maxElapsedTime  = 30 * time.Minute
 	blinkGitHubUser = "blinkhealthgithub"
 
 	/* Time elapsed between pull request 'create time' and the time it took
@@ -40,8 +40,9 @@ const (
 	 * comments from Atlantis __can__ exist, but we only care about the most
 	 * recent one.
 	 */
-	acceptablePlanElapsedTolerance  = 65  //seconds
-	acceptableApplyElapsedTolerance = 300 //seconds
+	acceptablePlanElapsedTolerance = 65 //seconds
+	//acceptableApplyElapsedTolerance = 1500 //seconds
+	acceptableApplyElapsedTolerance = 15 //seconds
 	planComment                     = "Ran Plan for dir"
 	planError                       = "Plan Error"
 	applyComment                    = "Ran Apply for dir"
@@ -130,7 +131,6 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 		oldElapsedTime = currentElapsedTime
 
 		prCreatedTs := getPrCreatedAt(ctx, client, org, repo, prNum)
-		fmt.Println("Getting list of comments.....")
 		comments, _, err := client.Issues.ListComments(ctx, org, repo, prNum, opt)
 		if err != nil {
 			fmt.Println(err)
@@ -142,8 +142,10 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 			user := comment.GetUser()
 			if *user.Login == blinkGitHubUser {
 				bodyContent := comment.GetBody()
-				fmt.Printf("-> comment [%s]\n", bodyContent[0:100])
-
+				//fmt.Printf("-> comment [%s]\n", bodyContent[0:50])
+				if !strings.Contains(bodyContent, match) {
+					continue
+				}
 				// quickly fail on error
 				if strings.Contains(bodyContent, errorMatch) {
 					fmt.Println(" Error found, latest comment:\n")
@@ -160,8 +162,8 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 				td = int(prCreatedTs.Sub(*commentCreated.GetTime()).Abs().Seconds())
 				fmt.Printf("Looking for [%s] elapsed (since start)[%.3fs] -- (since last check)[%.3fs]\n", match, currentElapsedTime.Seconds(), elapsedTime.Seconds())
 
-				fmt.Printf("td [%d] <= acceptableTimeDelta[%d] -  %v - num comments[%d]\n", td, acceptableTimeDelta, (td <= acceptableTimeDelta), len(comments))
-				fmt.Printf("match [%s] with bodyContent -  %v\n", match, strings.Contains(bodyContent, match))
+				//fmt.Printf("td [%d] <= acceptableTimeDelta[%d] -  %v - num comments[%d]\n", td, acceptableTimeDelta, (td <= acceptableTimeDelta), len(comments))
+				//fmt.Printf("match [%s] with bodyContent -  %v\n", match, strings.Contains(bodyContent, match))
 
 				if strings.Contains(bodyContent, match) && td <= acceptableTimeDelta {
 					fmt.Printf("Result found for [%s] user: [%s] PR created [%s] comment created [%s] time delta [%d]\n", match, *user.Login, prCreatedTs, comment.GetCreatedAt(), td)
@@ -171,8 +173,9 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 					return nil, errors.New(errMsg)
 				}
 
-				fmt.Printf("no match, match [%s] against body:[%s]\n", match, bodyContent[0:100])
+				//fmt.Printf("no match, match [%s] against body:[%s]\n", match, bodyContent[0:100])
 			}
+			fmt.Println()
 			// otherwise skip the PR message
 			//fmt.Printf("Skipping comment [%s] time delta[%ds] user [%s] comment created at [%s] PR created at [%s]\n", match, td, *user.Login, comment.GetCreatedAt(), prCreatedTs)
 		}
@@ -272,9 +275,9 @@ func main() {
 	} else {
 		foundComment := waitPlan(org, repo, pr)
 		atlantisPath = strings.Split(foundComment, "`")[1]
-		approvePr(org, repo, pr)
-		time.Sleep(timeOut) // TODO shouldn't really need this maybe take out.
-		runApply(org, repo, pr, atlantisPath)
+		//approvePr(org, repo, pr)
+		//time.Sleep(timeOut) // TODO shouldn't really need this maybe take out.
+		//runApply(org, repo, pr, atlantisPath)
 		waitApply(org, repo, pr)
 	}
 }
