@@ -41,8 +41,7 @@ const (
 	 * recent one.
 	 */
 	acceptablePlanElapsedTolerance = 65 //seconds
-	//acceptableApplyElapsedTolerance = 1500 //seconds
-	acceptableApplyElapsedTolerance = 15 //seconds
+	acceptableApplyElapsedTolerance = 1500 //seconds
 	planComment                     = "Ran Plan for dir"
 	planError                       = "Plan Error"
 	applyComment                    = "Ran Apply for dir"
