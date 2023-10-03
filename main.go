@@ -148,13 +148,14 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 				}
 
 				/* Brute force ignore anything that takes longer.  If we fall
-								 * into this clause - figure out why it takes so long for
-								 * Atlantis to emit/apply a plan or increase the delta.
-								 * Increasing the should probably be the last resort.
-				*/
+				 * into this clause - figure out why it takes so long for
+				 * Atlantis to emit/apply a plan or increase the delta.
+				 * Increasing the should probably be the last resort.
+				 */
 				commentCreated := comment.GetCreatedAt()
 				td := int(prCreatedTs.Sub(*commentCreated.GetTime()).Abs().Seconds())
 				fmt.Printf("Looking for [%s] elapsed (since start)[%.3fs] -- (since last check)[%.3fs]\n", match, currentElapsedTime.Seconds(), elapsedTime.Seconds())
+
 				if strings.Contains(bodyContent, match) && td <= acceptableTimeDelta {
 					fmt.Printf("Result found for [%s] user: [%s] PR created [%s] comment created [%s] time delta [%d]\n", match, *user.Login, prCreatedTs, comment.GetCreatedAt(), td)
 					return comment, nil
@@ -164,7 +165,7 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 				}
 			}
 			// otherwise skip the PR message
-			fmt.Printf("Skipping: user: %s comment created at:[%s] pr created at:[%s]\n", *user.Login, comment.GetCreatedAt(), prCreatedTs)
+			fmt.Printf("Skipping comment [%s] time delta[%ds] user [%s] comment created at [%s] PR created at [%s]\n", match, td, *user.Login, comment.GetCreatedAt(), prCreatedTs)
 		}
 		errMsg := fmt.Sprintf("Unexpected error - reached Timeout of ~ %.1f minutes.", maxElapsedTime.Minutes())
 		return nil, errors.New(errMsg)
