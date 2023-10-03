@@ -143,6 +143,7 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 			user := comment.GetUser()
 			if *user.Login == blinkGitHubUser {
 				bodyContent := comment.GetBody()
+				fmt.Printf("-> comment [%s]\n", bodyContent[0:100])
 
 				// quickly fail on error
 				if strings.Contains(bodyContent, errorMatch) {
