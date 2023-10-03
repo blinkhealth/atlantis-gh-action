@@ -38,7 +38,7 @@ const (
 	 * comments from Atlantis __can__ exist, but we only care about the most
 	 * recent one.
 	 */
-	acceptablePlanElapsedTolerance = 65 //seconds
+	acceptablePlanElapsedTolerance  = 65   //seconds
 	acceptableApplyElapsedTolerance = 1500 //seconds
 	planComment                     = "Ran Plan for dir"
 	planError                       = "Plan Error"
@@ -255,7 +255,6 @@ func runApply(org string, repo string, prNum int, atlantisPath string) {
 	fmt.Println(fmt.Sprintf("Commented `%s`", comment))
 	fmt.Println("Waiting for apply to start...")
 }
-
 
 /* Obligatory mainly main entry point */
 func main() {
