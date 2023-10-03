@@ -25,8 +25,6 @@ import (
 )
 
 const (
-	timeOut = 20 * time.Second
-	//initialInterval     = 800 * time.Millisecond
 	initialInterval     = 2 * time.Second
 	randomizationFactor = 0.05
 	multiplier          = 3
@@ -52,6 +50,7 @@ var client *github.Client
 var ctx context.Context = context.Background()
 var atlantisPath string
 
+/* Return the time the PR was created */
 func getPrCreatedAt(ctx context.Context, client github.Client, org string, repo string, prNum int) github.Timestamp {
 	pr, _, err := client.PullRequests.Get(ctx, org, repo, prNum)
 	if err != nil {
@@ -60,6 +59,7 @@ func getPrCreatedAt(ctx context.Context, client github.Client, org string, repo 
 	return *pr.CreatedAt
 }
 
+/* Checks if the PR is merged */
 func prIsMerged(ctx context.Context, client github.Client, org string, repo string, prNum int) bool {
 	pr, _, err := client.PullRequests.Get(ctx, org, repo, prNum)
 
@@ -69,6 +69,7 @@ func prIsMerged(ctx context.Context, client github.Client, org string, repo stri
 	return *pr.Merged
 }
 
+/* Return the correct tolerance based on what message is being searched for */
 func getCommentElapsedTolerance(match string) (int, error) {
 	if match == planComment {
 		fmt.Printf("Atlantis must comment with ['%s'] within [%ds]\n", match, acceptablePlanElapsedTolerance)
@@ -82,6 +83,7 @@ func getCommentElapsedTolerance(match string) (int, error) {
 	return -1, err
 }
 
+/* Auto approves the pull request */
 func approvePr(org string, repo string, prNum int) {
 	event := "APPROVE"
 	review := &github.PullRequestReviewRequest{Event: &event}
@@ -93,6 +95,7 @@ func approvePr(org string, repo string, prNum int) {
 	fmt.Println("Approved")
 }
 
+/* waits for the target comment to be posted on the PR */
 func waitForComment(ctx context.Context, client github.Client, org string, repo string, prNum int, match string, errorMatch string) (*github.IssueComment, error) {
 
 	/* EMPTY options - because it don't work!
@@ -141,7 +144,6 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 			user := comment.GetUser()
 			if *user.Login == blinkGitHubUser {
 				bodyContent := comment.GetBody()
-				//fmt.Printf("-> comment [%s]\n", bodyContent[0:50])
 				if !strings.Contains(bodyContent, match) {
 					continue
 				}
@@ -161,9 +163,6 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 				td = int(prCreatedTs.Sub(*commentCreated.GetTime()).Abs().Seconds())
 				fmt.Printf("Looking for [%s] elapsed (since start)[%.3fs] -- (since last check)[%.3fs]\n", match, currentElapsedTime.Seconds(), elapsedTime.Seconds())
 
-				//fmt.Printf("td [%d] <= acceptableTimeDelta[%d] -  %v - num comments[%d]\n", td, acceptableTimeDelta, (td <= acceptableTimeDelta), len(comments))
-				//fmt.Printf("match [%s] with bodyContent -  %v\n", match, strings.Contains(bodyContent, match))
-
 				if strings.Contains(bodyContent, match) && td <= acceptableTimeDelta {
 					fmt.Printf("Result found for [%s] user: [%s] PR created [%s] comment created [%s] time delta [%d]\n", match, *user.Login, prCreatedTs, comment.GetCreatedAt(), td)
 					return comment, nil
@@ -171,11 +170,9 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 					errMsg := fmt.Sprintf("Took longer than [%ds] to find comment [%s]. PR created [%s] plan created [%s]", td, match, prCreatedTs, commentCreated)
 					return nil, errors.New(errMsg)
 				}
-
-				//fmt.Printf("no match, match [%s] against body:[%s]\n", match, bodyContent[0:100])
 			}
 			fmt.Println()
-			// otherwise skip the PR message
+			// Uncomment for debugging
 			//fmt.Printf("Skipping comment [%s] time delta[%ds] user [%s] comment created at [%s] PR created at [%s]\n", match, td, *user.Login, comment.GetCreatedAt(), prCreatedTs)
 		}
 		errMsg := fmt.Sprintf("Unexpected error - reached Timeout of ~ %.1f minutes.", maxElapsedTime.Minutes())
@@ -189,6 +186,7 @@ func waitForComment(ctx context.Context, client github.Client, org string, repo 
 	return comment, nil
 }
 
+/* Helper to post a comment on the PR */
 func postComment(ctx context.Context, client github.Client, msg string, org string, repo string, prNum int) {
 	comment := &github.IssueComment{Body: &msg}
 	_, _, err := client.Issues.CreateComment(ctx, org, repo, prNum, comment)
@@ -198,12 +196,13 @@ func postComment(ctx context.Context, client github.Client, msg string, org stri
 	}
 }
 
+/* Helper to obtain the repo name */
 func splitRepo(repo string) (string, string) {
 	split := strings.Split(repo, "/")
 	return split[0], split[1]
 }
 
-// Wait for a comment with the output from Atlantis Plan, fail if Atlantis returns an error
+/* Wait for a Plan comment from Atlantis Plan */
 func waitPlan(org string, repo string, prNum int) string {
 	var bodyContent string
 	var firstLine string
@@ -229,6 +228,7 @@ func waitPlan(org string, repo string, prNum int) string {
 	return firstLine
 }
 
+/* Wait for a Apply comment from Atlantis */
 func waitApply(org string, repo string, prNum int) {
 
 	// Wait for a comment with the output from Atlantis Apply
@@ -246,6 +246,7 @@ func waitApply(org string, repo string, prNum int) {
 	fmt.Println("PR is OK to Merge!")
 }
 
+/* Issue apply to Atlantis */
 func runApply(org string, repo string, prNum int, atlantisPath string) {
 	workspace := strings.ReplaceAll(atlantisPath, "/", "_")
 	comment := fmt.Sprintf("atlantis apply -d %s -w %s", atlantisPath, workspace)
@@ -255,6 +256,8 @@ func runApply(org string, repo string, prNum int, atlantisPath string) {
 	fmt.Println("Waiting for apply to start...")
 }
 
+
+/* Obligatory mainly main entry point */
 func main() {
 	token := os.Getenv("GITHUB_API_TOKEN")
 	ts := oauth2.StaticTokenSource(
@@ -275,7 +278,6 @@ func main() {
 		foundComment := waitPlan(org, repo, pr)
 		atlantisPath = strings.Split(foundComment, "`")[1]
 		approvePr(org, repo, pr)
-		//time.Sleep(timeOut) // TODO shouldn't really need this maybe take out.
 		runApply(org, repo, pr, atlantisPath)
 		waitApply(org, repo, pr)
 	}
