@@ -30,8 +30,10 @@ const (
 	randomizationFactor = 0.5
 	multiplier          = 3
 	// Lower maxInterval increases the retry frequency, scoped to maxElapsedTime
-	maxInterval     = 15 * time.Second
-	maxElapsedTime  = 20 * time.Minute
+	//maxInterval     = 10 * time.Second
+	//maxElapsedTime  = 15 * time.Minute
+	maxInterval     = 1 * time.Second
+	maxElapsedTime  = 7 * time.Minute
 	blinkGitHubUser = "blinkhealthgithub"
 
 	/* Time elapsed between pull request 'create time' and the time it took
